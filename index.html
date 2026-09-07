@@ -13,6 +13,7 @@
     height: 100%;
     margin: 0;
   }
+
   body{
     --bg: #0b0c10;
     --panel: #101218;
@@ -265,17 +266,17 @@
     padding: 1.5rem 1.5rem 0.5rem;
     display: flex;
     flex-direction: column;
-    gap: 1rem;
+    gap: 0.75rem;
     max-width: 720px;
     width: 100%;
     margin: 0 auto;
   }
 
-  .sc-msg{ display: flex; gap: 0.7rem; max-width: 100%; }
+  .sc-msg{ display: flex; gap: 0.6rem; max-width: 100%; }
   .sc-msg.user{ flex-direction: row-reverse; }
 
   .sc-avatar{
-    width: 26px; height: 26px;
+    width: 22px; height: 22px;
     border-radius: 50%;
     flex-shrink: 0;
     background: linear-gradient(135deg, var(--accent-2), var(--accent-1));
@@ -287,12 +288,13 @@
   }
 
   .sc-bubble{
-    padding: 0.7rem 0.95rem;
-    border-radius: 14px;
-    font-size: 0.92rem;
-    line-height: 1.55;
+    padding: 0.55rem 0.8rem;
+    border-radius: 12px;
+    font-size: 0.88rem;
+    line-height: 1.5;
     white-space: pre-wrap;
-    max-width: 78%;
+    max-width: min(70%, 480px);
+    width: fit-content;
   }
   .sc-msg.assistant .sc-bubble{
     background: var(--card);
@@ -390,6 +392,77 @@
   .sc-send:disabled{ opacity: 0.35; cursor: not-allowed; }
   .sc-send:active:not(:disabled){ transform: scale(0.94); }
 
+  .sc-convitem .title-input{
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--accent-1);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 0.82rem;
+    padding: 0.1rem 0.3rem;
+  }
+
+  .sc-feedback{
+    display: flex;
+    gap: 0.3rem;
+    margin-top: 0.4rem;
+  }
+  .sc-feedback button{
+    background: transparent;
+    border: 1px solid var(--stroke);
+    border-radius: 6px;
+    padding: 0.1rem 0.35rem;
+    font-size: 0.78rem;
+    cursor: pointer;
+    color: var(--faint);
+  }
+  .sc-feedback button:hover{ border-color: var(--stroke-strong); color: var(--text); }
+  .sc-feedback button.active{ border-color: var(--accent-1); color: var(--text); background: var(--stroke); }
+
+  .sc-followups{
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin: 0.2rem 0 0.4rem 2rem;
+    max-width: 720px;
+  }
+  .sc-followup-chip{
+    background: var(--card);
+    border: 1px solid var(--stroke);
+    color: var(--muted);
+    font-size: 0.78rem;
+    padding: 0.35rem 0.7rem;
+    border-radius: 999px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .sc-followup-chip:hover{ border-color: var(--accent-1); color: var(--text); }
+
+  .sc-mic{
+    flex-shrink: 0;
+    width: 34px; height: 34px;
+    border-radius: 10px;
+    border: 1px solid var(--stroke);
+    background: transparent;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 0.95rem;
+  }
+  .sc-mic:hover{ border-color: var(--stroke-strong); color: var(--text); }
+  .sc-mic.recording{
+    color: #ff9d8a;
+    border-color: #ff9d8a;
+    animation: pulse-mic 1s infinite;
+  }
+  @keyframes pulse-mic{
+    0%, 100%{ opacity: 1; }
+    50%{ opacity: 0.5; }
+  }
+
   .sc-hint{
     text-align: center;
     font-size: 0.72rem;
@@ -460,6 +533,7 @@
   <div class="sc-inputbar" id="inputBar">
     <div class="sc-inputwrap">
       <textarea id="textInput" rows="1" placeholder="Escribe tu mensaje…"></textarea>
+      <button class="sc-mic" id="micBtn" aria-label="Dictar por voz" type="button">🎤</button>
       <button class="sc-send" id="sendBtn" disabled aria-label="Enviar mensaje">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
           <path d="M4 12L20 4L13 20L11 13L4 12Z" fill="currentColor" />
@@ -562,12 +636,42 @@
       .map(
         (c) => `
         <div class="sc-convitem ${c.id === currentId ? "active" : ""}" data-id="${c.id}">
-          <span class="title">${escapeHtml(c.title)}</span>
+          <span class="title" data-title="${c.id}">${escapeHtml(c.title)}</span>
           <span class="del" data-del="${c.id}">✕</span>
         </div>`
       )
       .join("");
   }
+
+  function startRenaming(id) {
+    const convo = conversations.find((c) => c.id === id);
+    if (!convo) return;
+    const span = convList.querySelector(`[data-title="${id}"]`);
+    if (!span) return;
+    const input = document.createElement("input");
+    input.className = "title-input";
+    input.value = convo.title;
+    span.replaceWith(input);
+    input.focus();
+    input.select();
+
+    const commit = () => {
+      const newTitle = input.value.trim() || convo.title;
+      convo.title = newTitle;
+      saveConversations();
+      renderSidebar();
+    };
+    input.addEventListener("blur", commit);
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") input.blur();
+      if (e.key === "Escape") { input.value = convo.title; input.blur(); }
+    });
+  }
+
+  convList.addEventListener("dblclick", (e) => {
+    const titleEl = e.target.closest(".title");
+    if (titleEl) startRenaming(titleEl.getAttribute("data-title"));
+  });
 
   function closeSidebarOnMobile() {
     sidebar.classList.remove("open");
@@ -595,6 +699,12 @@
     remainingLabel.textContent = `${Math.max(remaining, 0)}/${DAILY_LIMIT} consultas hoy`;
   }
 
+  const FOLLOWUP_SUGGESTIONS = [
+    "Explícamelo más simple",
+    "Dame un ejemplo",
+    "Resúmelo en una frase",
+  ];
+
   function renderMessages() {
     const convo = getCurrentConversation();
     const msgs = convo ? convo.messages : [];
@@ -606,17 +716,29 @@
     }
     welcome.style.display = "none";
     thread.style.display = "flex";
+    const lastIndex = msgs.length - 1;
     thread.innerHTML = msgs
-      .map(
-        (m, i) => `
+      .map((m, i) => {
+        const isLastAssistant = m.role === "assistant" && i === lastIndex && !isLoading;
+        const feedback = m.feedback || null;
+        return `
         <div class="sc-msg ${m.role}">
           <div class="sc-avatar"></div>
           <div class="sc-bubble">
             ${escapeHtml(m.content)}
             ${m.role === "assistant" ? `<button class="sc-copy" data-copy-index="${i}" aria-label="Copiar respuesta">⧉</button>` : ""}
+            ${m.role === "assistant" ? `
+              <div class="sc-feedback">
+                <button data-fb="up" data-fb-index="${i}" class="${feedback === "up" ? "active" : ""}">👍</button>
+                <button data-fb="down" data-fb-index="${i}" class="${feedback === "down" ? "active" : ""}">👎</button>
+              </div>` : ""}
           </div>
-        </div>`
-      )
+        </div>
+        ${isLastAssistant ? `
+          <div class="sc-followups">
+            ${FOLLOWUP_SUGGESTIONS.map((s) => `<button class="sc-followup-chip">${escapeHtml(s)}</button>`).join("")}
+          </div>` : ""}`;
+      })
       .join("");
 
     if (showTypingIndicator) {
@@ -630,6 +752,26 @@
     }
     scBody.scrollTop = scBody.scrollHeight;
   }
+
+  thread.addEventListener("click", (e) => {
+    const fbBtn = e.target.closest("[data-fb]");
+    if (fbBtn) {
+      const convo = getCurrentConversation();
+      const idx = Number(fbBtn.getAttribute("data-fb-index"));
+      const value = fbBtn.getAttribute("data-fb");
+      if (convo?.messages[idx]) {
+        convo.messages[idx].feedback = convo.messages[idx].feedback === value ? null : value;
+        saveConversations();
+        renderMessages();
+      }
+      return;
+    }
+    const followupBtn = e.target.closest(".sc-followup-chip");
+    if (followupBtn) {
+      send(followupBtn.textContent);
+      return;
+    }
+  });
 
   thread.addEventListener("click", (e) => {
     const btn = e.target.closest(".sc-copy");
@@ -732,6 +874,49 @@
 
   const charCount = document.getElementById("charCount");
   const themeToggle = document.getElementById("themeToggle");
+  const micBtn = document.getElementById("micBtn");
+
+  // --- Dictado por voz ---
+  const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let recognition = null;
+  let isRecording = false;
+
+  if (SpeechRecognitionAPI) {
+    recognition = new SpeechRecognitionAPI();
+    recognition.lang = "es-ES";
+    recognition.interimResults = false;
+    recognition.continuous = false;
+
+    recognition.onresult = (event) => {
+      const transcript = event.results[0][0].transcript;
+      textInput.value = (textInput.value ? textInput.value + " " : "") + transcript;
+      autoGrow();
+      sendBtn.disabled = !textInput.value.trim();
+      charCount.textContent = textInput.value.length;
+    };
+
+    recognition.onend = () => {
+      isRecording = false;
+      micBtn.classList.remove("recording");
+    };
+
+    recognition.onerror = () => {
+      isRecording = false;
+      micBtn.classList.remove("recording");
+    };
+
+    micBtn.addEventListener("click", () => {
+      if (isRecording) {
+        recognition.stop();
+        return;
+      }
+      isRecording = true;
+      micBtn.classList.add("recording");
+      recognition.start();
+    });
+  } else {
+    micBtn.style.display = "none"; // el navegador no soporta dictado por voz
+  }
 
   textInput.addEventListener("input", () => {
     autoGrow();
